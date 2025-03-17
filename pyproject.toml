@@ -1,0 +1,10 @@
+[project]
+name = "trim-mp3-cover-art"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mutagen>=1.47.0",
+    "pillow>=11.1.0",
+]
