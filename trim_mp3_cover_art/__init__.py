@@ -7,6 +7,10 @@ from PIL import Image
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC
 
+from .logger import Logger
+
+logger = Logger.get_logger(__name__)
+
 def center_crop(img: Image, target_aspect_ratio: float) -> Image:
     '''
     画像を中央を基準にして、指定されたアスペクト比にトリミング
@@ -41,7 +45,7 @@ def center_crop(img: Image, target_aspect_ratio: float) -> Image:
 
     return cropped_img
 
-def process_mp3_file(mp3_file_path: str, target_aspect_ratio: float):
+def process_mp3_file(mp3_file_path: str, target_aspect_ratio: float, temp_dir: Path=Path("./_temp")):
     '''
     MP3のカバーアートを抽出して中央トリミング
 
@@ -51,6 +55,8 @@ def process_mp3_file(mp3_file_path: str, target_aspect_ratio: float):
         MP3ファイルのパス
     target_aspect_ratio : float
         目標のアスペクト比 (幅/高さ)
+    temp_dir : Path, optional
+        一時ファイルを保存するディレクトリ, by default Path("./_temp")
     '''
     audio = MP3(mp3_file_path, ID3=ID3)
     
@@ -68,10 +74,9 @@ def process_mp3_file(mp3_file_path: str, target_aspect_ratio: float):
             break
 
     if apic:
-        TEMP_DIR = Path("./_temp")
-        TEMP_DIR.mkdir(parents=True, exist_ok=True)
-        temp_cover_path = TEMP_DIR / 'temp_cover.jpg'
-        temp_cover_cropped_path = TEMP_DIR / 'temp_cover_cropped.jpg'
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_cover_path = temp_dir / 'temp_cover.jpg'
+        temp_cover_cropped_path = temp_dir / 'temp_cover_cropped.jpg'
         
         # 一時画像書き出し
         with open(temp_cover_path, 'wb') as img_file:
@@ -86,26 +91,31 @@ def process_mp3_file(mp3_file_path: str, target_aspect_ratio: float):
         with open(temp_cover_cropped_path, 'rb') as img_file:
             new_apic_data = img_file.read()
         
-        # APICタグだけを更新
+        # APICタグを更新
         tags.delall('APIC')
         tags.add(APIC(
-            encoding=3,            # utf-8
+            encoding=3, # utf-8
             mime='image/jpeg',
-            type=3,                # front cover
+            type=3, # front cover
             desc='',
             data=new_apic_data
         ))
 
         # 元のタグのバージョンを保持して保存
         tags.save(mp3_file_path, v1=tags.version[0], v2_version=tags.version[1])
-        
-        # 一時ファイルを削除
-        shutil.rmtree(TEMP_DIR)
 
-if __name__ == '__main__':
+def main():
+    '''
+    メイン処理
+    '''
     target_aspect_ratio = 1  # 正方形 (720x720)
     mp3_files_list = sorted(glob.iglob(os.path.join('./mp3files', "*.mp3")))
-
+    TEMP_DIR = Path("./_temp")
+    
     for mp3_file_path in mp3_files_list:
-        process_mp3_file(mp3_file_path, target_aspect_ratio)
-        print(f"処理済み: {mp3_file_path}")
+        process_mp3_file(mp3_file_path, target_aspect_ratio, TEMP_DIR)
+        logger.info(f"Processed {mp3_file_path}")
+
+    # 一時ファイルを削除
+    shutil.rmtree(TEMP_DIR)
+    logger.info("Temporary files deleted")

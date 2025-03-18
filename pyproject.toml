@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "colorlog>=6.9.0",
     "mutagen>=1.47.0",
     "pillow>=11.1.0",
 ]

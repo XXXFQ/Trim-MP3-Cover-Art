@@ -1,0 +1,1 @@
+@py -m "trim_mp3_cover_art" %*
