@@ -1,141 +1,41 @@
+import argparse
 import glob
-import os
 import shutil
 from pathlib import Path
 
-from PIL import Image
-from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, APIC, TRCK
-
+from .mp3_processor import process_mp3_file
 from .logger import Logger
 
 logger = Logger.get_logger(__name__)
 
-def center_crop(img: Image, target_aspect_ratio: float) -> Image:
+def init_parser() -> argparse.ArgumentParser:
     '''
-    画像を中央基準で指定されたアスペクト比にトリミング
-
-    Parameters
-    ----------
-    img : PIL.Image
-        元の画像
-    target_aspect_ratio : float
-        目標のアスペクト比 (幅/高さ)
-
+    コマンドライン引数を解析するためのパーサーを初期化する
+    
     Returns
     -------
-    PIL.Image
-        トリミングされた画像
+    parser : argparse.ArgumentParser
+        パーサー
     '''
-    img_width, img_height = img.size
-    current_aspect_ratio = img_width / img_height
+    parser = argparse.ArgumentParser(description='Trim Mp3 Cover Art')
+    parser.add_argument('input_dir', type=str, help='Input directory path containing mp3 files')
+    return parser
 
-    if current_aspect_ratio > target_aspect_ratio:
-        new_width = int(target_aspect_ratio * img_height)
-        left = (img_width - new_width) // 2
-        cropped_img = img.crop((left, 0, left + new_width, img_height))
-    else:
-        new_height = int(img_width / target_aspect_ratio)
-        top = (img_height - new_height) // 2
-        cropped_img = img.crop((0, top, img_width, top + new_height))
-
-    return cropped_img
-
-def extract_apic(tags: ID3) -> APIC:
+def main(argv=None):
     '''
-    APICタグを取得
-
-    Parameters
-    ----------
-    tags : ID3
-        MP3ファイルのタグ
-
-    Returns
-    -------
-    APIC
-        APICタグ
+    メイン関数
     '''
-    for tag in tags.values():
-        if isinstance(tag, APIC):
-            return tag
-    return None
+    parser = init_parser()
+    args = parser.parse_args(argv)
 
-def preserve_track_number(tags: ID3) -> TRCK:
-    '''
-    トラック番号を取得して保持
+    input_dir = Path(args.input_dir)
 
-    Parameters
-    ----------
-    tags : ID3
-        MP3ファイルのタグ
+    if not input_dir.exists() or not input_dir.is_dir():
+        logger.error(f"Input directory {input_dir} does not exist or is not a directory.")
+        return
 
-    Returns
-    -------
-    TRCK
-        トラック番号タグ
-    '''
-    return tags.get('TRCK')
-
-def process_mp3_file(mp3_file_path: str, target_aspect_ratio: float, temp_dir: Path):
-    '''
-    MP3のカバーアートを抽出して中央トリミングし、トラック番号を維持する
-
-    Parameters
-    ----------
-    mp3_file_path : str
-        MP3ファイルのパス
-    target_aspect_ratio : float
-        目標のアスペクト比 (幅/高さ)
-    temp_dir : Path
-        一時ファイルを保存するディレクトリ
-    '''
-    audio = MP3(mp3_file_path, ID3=ID3)
-
-    if audio.tags is None:
-        audio.add_tags()
-
-    tags = audio.tags
-
-    apic = extract_apic(tags)
-    track_number = preserve_track_number(tags)
-
-    if apic:
-        temp_dir.mkdir(parents=True, exist_ok=True)
-
-        temp_cover_path = temp_dir / 'temp_cover'
-        temp_cover_cropped_path = temp_dir / 'temp_cover_cropped.jpg'
-
-        with open(temp_cover_path, 'wb') as img_file:
-            img_file.write(apic.data)
-
-        image = Image.open(temp_cover_path)
-        image = center_crop(image, target_aspect_ratio)
-
-        if apic.mime == 'image/png':
-            image = image.convert('RGB')
-
-        image.save(temp_cover_cropped_path, format='JPEG')
-
-        with open(temp_cover_cropped_path, 'rb') as img_file:
-            new_apic_data = img_file.read()
-
-        tags.delall('APIC')
-        tags.add(APIC(
-            encoding=3,
-            mime='image/jpeg',
-            type=3,
-            desc='',
-            data=new_apic_data
-        ))
-
-        if track_number:
-            tags.add(track_number)
-
-        tags.save(mp3_file_path, v2_version=3)
-
-def main():
-    target_aspect_ratio = 1  # 正方形 (720x720)
-    mp3_files_list = sorted(glob.glob(os.path.join('./mp3files', "*.mp3")))
+    target_aspect_ratio = 1
+    mp3_files_list = sorted(glob.glob(str(input_dir / "*.mp3")))
     TEMP_DIR = Path("./_temp")
 
     for mp3_file_path in mp3_files_list:
