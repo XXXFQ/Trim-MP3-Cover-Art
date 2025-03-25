@@ -9,3 +9,8 @@ dependencies = [
     "mutagen>=1.47.0",
     "pillow>=11.1.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.12.0",
+]
