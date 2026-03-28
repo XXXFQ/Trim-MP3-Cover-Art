@@ -30,8 +30,14 @@ def main(argv=None):
 
     input_dir = Path(args.input_dir)
 
+    # 入力ディレクトリの存在と有効性を確認
     if not input_dir.exists() or not input_dir.is_dir():
         logger.error(f"Input directory {input_dir} does not exist or is not a directory.")
+        return
+    
+    # ファイルが存在するか確認
+    if not any(input_dir.glob("*.mp3")):
+        logger.error(f"No mp3 files found in the input directory {input_dir}.")
         return
 
     target_aspect_ratio = 1
